@@ -1,0 +1,3 @@
+/mnt/d/ChronosLocker/build/CMakeFiles/chronos_server.dir
+/mnt/d/ChronosLocker/build/CMakeFiles/edit_cache.dir
+/mnt/d/ChronosLocker/build/CMakeFiles/rebuild_cache.dir
