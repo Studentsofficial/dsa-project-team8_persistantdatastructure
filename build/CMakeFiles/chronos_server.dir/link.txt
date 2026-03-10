@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/chronos_server.dir/src/main.cpp.o CMakeFiles/chronos_server.dir/src/Database.cpp.o -o chronos_server  -lpthread -lsqlite3 /usr/lib/x86_64-linux-gnu/libcrypto.so 
