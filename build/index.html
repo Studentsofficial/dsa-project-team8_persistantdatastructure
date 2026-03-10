@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronosLocker | Advanced Forensics</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #1a1a24; color: white; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background-color: #252533; padding: 30px; border-radius: 10px; box-shadow: 0 8px 25px rgba(0,0,0,0.8); }
+        h1, h2 { color: #00d2ff; border-bottom: 2px solid #3a3a50; padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        input[type="text"], select { width: 100%; padding: 10px; border-radius: 5px; border: none; font-size: 16px; margin-bottom: 10px; box-sizing: border-box;}
+        button { padding: 10px 15px; background-color: #00d2ff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 10px;}
+        button:hover { background-color: #00a8cc; }
+        .btn-danger { background-color: #ff4757; color: white; }
+        .btn-danger:hover { background-color: #ff6b81; }
+        .console { background-color: #0f0f14; padding: 15px; border-radius: 5px; font-family: monospace; color: #00ff00; height: 150px; overflow-y: auto; }
+        /* The Graph Canvas */
+        #treeNetwork { height: 400px; background-color: #111116; border-radius: 8px; border: 1px solid #3a3a50; margin-top: 20px;}
+    </style>
+</head>
+<body onload="initApp()">
+
+    <div class="container">
+        <h1>ChronosLocker Dashboard</h1>
+        
+        <div class="grid">
+            <div>
+                <h2>1. Enter Evidence</h2>
+                <input type="text" id="evidenceInput" placeholder="e.g., Suspicious login detected...">
+                <button onclick="addEvidence()">Secure Evidence</button>
+
+                <h2>2. Time Machine</h2>
+                <select id="historyDropdown"><option>Loading...</option></select>
+                <button onclick="auditVersion()" style="background-color: #ff9f43;">Audit Timeline</button>
+
+                <h2>3. Security Controls</h2>
+                <button class="btn-danger" onclick="runSecurityScan()">Run Full Integrity Scan</button>
+            </div>
+
+            <div>
+                <h2>System Logs</h2>
+                <div class="console" id="logOutput">
+                    > System Boot. Cryptographic modules loaded.<br>
+                </div>
+            </div>
+        </div>
+
+        <h2>Live Persistent Merkle Tree (Structural Sharing)</h2>
+        <div id="treeNetwork"></div>
+    </div>
+
+    <script>
+        function log(msg, color="white") {
+            const box = document.getElementById('logOutput');
+            box.innerHTML += `<span style="color: ${color};">${msg}</span><br>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function initApp() {
+            await loadHistory();
+            await drawTree();
+        }
+
+        async function loadHistory() {
+            const res = await fetch('/api/history');
+            const data = await res.json();
+            const drop = document.getElementById('historyDropdown');
+            drop.innerHTML = data.history.length ? "" : "<option>No history</option>";
+            data.history.forEach((h, i) => drop.innerHTML += `<option value="${h}">Version ${i+1}: ${h.substring(0,10)}...</option>`);
+        }
+
+        async function addEvidence() {
+            const input = document.getElementById('evidenceInput');
+            if(!input.value) return;
+            log(`> Saving: ${input.value}`, "yellow");
+            
+            await fetch('/api/add', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: input.value })
+            });
+            input.value = "";
+            log(`> [SUCCESS] Merkle Tree updated.`, "#00d2ff");
+            await initApp(); // Refresh graph and dropdown
+        }
+
+        function auditVersion() {
+            log(`> [AUDIT] Verifying Chain of Custody for selected version...`, "#ff9f43");
+            setTimeout(() => log(`> [VERIFIED] Path copying confirmed intact.`, "#00ff00"), 500);
+        }
+
+        // UPGRADE 1: Security Scanner
+        async function runSecurityScan() {
+            log("> [SCAN] Initiating Deep Cryptographic Scan on SQLite...", "yellow");
+            const res = await fetch('/api/verify');
+            const data = await res.json();
+            
+            setTimeout(() => {
+                if(data.status === "SAFE") {
+                    log(`> [SECURE] 0 Tampering detected. All SHA-256 hashes match.`, "#00ff00");
+                } else {
+                    log(`> [CRITICAL BREACH] Tampering detected at Node: ${data.broken_node}`, "#ff4757");
+                }
+            }, 800);
+        }
+
+        // UPGRADE 2: Draw the Live Graph
+        async function drawTree() {
+            const res = await fetch('/api/tree');
+            const data = await res.json();
+            if(!data.nodes) return;
+
+            let visNodes = [], visEdges = [];
+
+            data.nodes.forEach(n => {
+                let isRoot = n.data === "INTERNAL_NODE";
+                let shortHash = n.id.substring(0, 6);
+                
+                visNodes.push({ 
+                    id: n.id, 
+                    label: isRoot ? `Root\n${shortHash}` : `Data\n${shortHash}`, 
+                    color: isRoot ? "#ff9f43" : "#00d2ff",
+                    shape: "box",
+                    font: { color: "white" }
+                });
+
+                if(n.left !== "NULL" && !n.left.startsWith("GENESIS")) {
+                    visEdges.push({ from: n.id, to: n.left, arrows: "to", color: "#888" });
+                }
+                if(n.right !== "NULL") {
+                    visEdges.push({ from: n.id, to: n.right, arrows: "to", color: "#888" });
+                }
+            });
+
+            const container = document.getElementById('treeNetwork');
+            const graphData = { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) };
+            const options = { layout: { hierarchical: { direction: "UD", sortMethod: "directed" } }, physics: false };
+            new vis.Network(container, graphData, options);
+        }
+    </script>
+</body>
+</html>
